@@ -1,13 +1,15 @@
 #!/bin/bash
 
-AWS_PROFILE="batch"
+AWS_PROFILE=""
 DEST_REGION="us-west-2"
 AWS_ACCOUNT=""
 SOURCE_REGION="us-east-1"
 SOURCE_AMI_ID=""
-TARGET_USER_ID=""
-AMI_NAME="My Shared AMI"
+TARGET_USER_ID="171037455572"
+AMI_NAME="PMv5 SL AMI Promoted from stg"
 AMI_DESCRIPTION="Shared AMI from $SOURCE_REGION"
+MAX_TRIES=5
+COUNTER=1
 
  echo "Copying AMI to $DEST_REGION..."
  NEW_AMI_ID=$(aws ec2 copy-image \
@@ -17,6 +19,7 @@ AMI_DESCRIPTION="Shared AMI from $SOURCE_REGION"
         --name "$AMI_NAME" \
         --description "$AMI_DESCRIPTION" \
         --query "ImageId" \
+		--tag-specifications 'ResourceType=image,Tags=[{Key=Environment,Value=PROMOTED-FROM-STG-TO-PRD},{Key=Project,Value=PMV5SL}]' \
 		--profile $AWS_PROFILE \
         --output text)
 		
@@ -28,7 +31,8 @@ AMI_DESCRIPTION="Shared AMI from $SOURCE_REGION"
     --output text)	
 	
 # Wait for the AMI to become available
-while true; do
+while [ $COUNTER -le $MAX_TRIES ]
+do
     state=$(aws ec2 describe-images --image-ids $NEW_AMI_ID --region $DEST_REGION --query "Images[0].State" --profile $AWS_PROFILE --output text)
     if [ "$state" == "available" ]; then
         echo "AMI is now available."
@@ -55,6 +59,8 @@ while true; do
         break
     else
         echo "AMI is still in state: $state. Waiting..."
+		sleep 300
     fi
+	COUNTER=$((COUNTER + 1))
 done
 
